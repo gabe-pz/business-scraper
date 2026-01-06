@@ -1,14 +1,14 @@
 import requests, csv, time, os #type: ignore
-from anthropic import Anthropic 
 from datetime import date
-from api_keys import get_places_api_key, get_claude_api_key 
+from api_keys import get_places_api_key
 
-#API Keys stuff
-API_KEY_PLACES:str = get_places_api_key()
-API_KEY_CLAUDE:str = get_claude_api_key() 
+#API Keys, Replace with your own API key
+API_KEY_PLACES: str = get_places_api_key()
 
+#Create directory to save CSVs to 
+os.makedirs('cold_leads', exist_ok=True)
 
-os.makedirs('call_data_csvs', exist_ok=True)
+#Request URLs
 url_places:str = 'https://places.googleapis.com/v1/places:searchText'
 url_geo:str = 'https://maps.googleapis.com/maps/api/geocode/json' 
 
@@ -19,10 +19,8 @@ headers: dict[str, str] = {
     'X-Goog-FieldMask': 'places.displayName,places.websiteUri,places.nationalPhoneNumber,nextPageToken,places.googleMapsUri,places.userRatingCount,places.photos'
 }
 
-#Initalize claude client
-client = Anthropic(api_key=API_KEY_CLAUDE)
 
-
+#Simple string to list function for fun
 def str_to_list(s:str) -> list[str]:
     string_list: list[str] = []
     char_list: list[str] = []
@@ -48,6 +46,7 @@ def str_to_list(s:str) -> list[str]:
         char_list.append(char)
     return string_list
 
+#Actual scraper function
 def scraper(state: str, city:str, business_type:int, type_scrape:int) -> tuple[list[dict[str, str]], int]:
     #Words do not want in business list
     bad_words: set[str] = {
@@ -260,6 +259,7 @@ def scraper(state: str, city:str, business_type:int, type_scrape:int) -> tuple[l
 
     return (list(business_dict.values()), api_requests)
 
+#Saving data
 def save_as_csv(business_list: list[dict[str, str]], business_type_scrape: int, type_scrape: int, city_scrape: str, state_scrape: str) -> None:
     today = date.today()
     filename: str = ''
@@ -280,6 +280,7 @@ def save_as_csv(business_list: list[dict[str, str]], business_type_scrape: int, 
             writer.writeheader()
             writer.writerows(business_list)
 
+#Runs a single city at a time, and scrapes the corresponding business type and type of scrape in that business. After city is scraped saves it to csv in dir created above
 def scraper_run_loop(state_scrape: str, cities_scrape: list[str], business_type_scrape: int, type_scrape: int) -> None:  
     leads_found: int = 0
     total_api_requests: int = 0 
@@ -297,15 +298,17 @@ def scraper_run_loop(state_scrape: str, cities_scrape: list[str], business_type_
         print('-' * 40) 
 
         if business_list:
+            #Saves the businesses got for the city just scraped, to a csv 
             save_as_csv(business_list, business_type_scrape, type_scrape, city, state_scrape)
         else:
             print(f'No businesses without websites found for {business_type_scrape} in {city}') 
-    
+    #End of scrape session, for the total cities
     print('************************* Finished Scraping *************************')  
     print('DATA: ')
     print(f'Total API Requests {total_api_requests}') 
     print(f'Total Leads found {leads_found}') 
-
+    
+#Some simple labeling for claude
 def business_type_label(business_type_val: int) -> str:
     if business_type_val == 1:
         return 'car customization shops'
@@ -313,7 +316,6 @@ def business_type_label(business_type_val: int) -> str:
         return 'home remodelers'
     else:
         return ' '
-
 def scrape_type_label(scrape_type_val: int) -> str:
     if scrape_type_val == 1:
         return 'get leads with no site'
@@ -321,52 +323,3 @@ def scrape_type_label(scrape_type_val: int) -> str:
         return 'get leads with a site, but have low review count'
     else:
         return ' '
-
-if __name__ == '__main__':
-    #Get input data 
-    business_type_val: int = int(input('Enter the business type to scrape(1 = car customization shops, 2 = home remodeling): '))
-    print(' ') 
-    scrape_type_val: int = int(input('Enter the type of scrape to do(1 = get leads w no sites, 2 = get leads w site but low review count): '))
-    print(' ') 
-    state: str = input('Enter the state to scrape: ')
-    print(' ') 
-    num_cities: int =int (input(f'Enter the number of cities to scrape in {state}: '))
-
-    #Check input data
-    print(' ')
-    print('*****INPUT DATA*****')
-    print(f'Business type scraping: {business_type_label(business_type_val)}') 
-    print(' ')
-    print(f'Type of scraping: {scrape_type_label(scrape_type_val)}') 
-    print(' ')
-    print(f'State scraping: {state}')
-    print(' ') 
-    print(f'Number of cities scraping in {state}: {num_cities}')
-    print(' ')
-
-    data_check: str = input('Does the scraping input data look correct(y/n): ')
-
-    if(data_check == 'y'):
-        #Generate city list
-        message = client.messages.create(
-            max_tokens=1024, 
-            messages=[{
-                'content':  f"""
-                Generate me a comma seperated list of {num_cities} cities in {state}, 
-                that are good cities to cold call {business_type_label(business_type_val)}, to try and sell them a website, 
-                in this format-> city1, city2, city 3. Respond with only the list of cities, nothing else. 
-                1. Ensure the cities are not too close to each other
-                2. Ensure the cities are not too small
-                """,
-                'role': 'user', 
-            }], 
-            model='claude-sonnet-4-5-20250929'
-        )
-        cities = str_to_list(message.content[0].text) #type: ignore
-        print(f'Scraping started, scraping the state {state} and the cities of {cities}')
-        
-        #scraper run function
-        scraper_run_loop(state, cities, business_type_val, scrape_type_val) 
-    else:
-        print(' ')
-        print('Okay, Ending program') 
