@@ -1,17 +1,20 @@
 import requests, csv, time, os #type: ignore
 from datetime import date
-from api_keys import get_places_api_key
+from api_keys import get_places_api_key, get_claude_api_key
+from anthropic import Anthropic 
+
 
 #API Keys, Replace with your own API key
 API_KEY_PLACES: str = get_places_api_key()
+API_KEY_CLAUDE: str = get_claude_api_key()
 
 #Create directory to save CSVs to 
 directory_name = 'cold_leads'
 os.makedirs(directory_name, exist_ok=True) 
 
 #Request URLs
-url_places:str = 'https://places.googleapis.com/v1/places:searchText'
-url_geo:str = 'https://maps.googleapis.com/maps/api/geocode/json' 
+url_places: str = 'https://places.googleapis.com/v1/places:searchText'
+url_geo: str = 'https://maps.googleapis.com/maps/api/geocode/json' 
 
 #Header for the POST request for places API
 headers: dict[str, str] = {
@@ -20,8 +23,11 @@ headers: dict[str, str] = {
     'X-Goog-FieldMask': 'places.displayName,places.websiteUri,places.nationalPhoneNumber,nextPageToken,places.googleMapsUri,places.userRatingCount,places.photos'
 }
 
+#Initalize claude client for use
+client = Anthropic(api_key=API_KEY_CLAUDE)  
 
-#Simple string to list function for fun
+
+#Simple string to list function. Added for fun
 def str_to_list(s:str) -> list[str]:
     string_list: list[str] = []
     char_list: list[str] = []
@@ -48,7 +54,8 @@ def str_to_list(s:str) -> list[str]:
     return string_list
 
 #Actual scraper function
-def scraper(state: str, city:str, business_type:int, type_scrape:int) -> tuple[list[dict[str, str]], int]:
+def scraper(state: str, city: str, search_type: list[str], type_scrape: int) -> tuple[list[dict[str, str]], int]: 
+    api_requests: int = 0
     #Words do not want in business list
     bad_words: set[str] = {
         # Corporate / Legal
@@ -92,57 +99,27 @@ def scraper(state: str, city:str, business_type:int, type_scrape:int) -> tuple[l
         'pool', 'spa'
     }
 
-    business_dict: dict[str, dict[str, str]]  = {} 
-    search_type: list[str] = []
-    api_requests: int = 0
-    #Get cords for current city
+    business_dict: dict[str, dict[str, str]]  = {}     
+    #Parameters for geo request
     params: dict[str, str] = {
         'address': f'{city}, {state}',
         'key': API_KEY_PLACES
     }
-
+    
+    #Get cords of current city, for use in location bias
     response_geo: requests.models.Response = requests.get(url_geo, params=params)
-    api_requests += 1
-
     data_geo = response_geo.json() 
-
-    if response_geo.status_code != 200:
+    api_requests += 1
+    if(response_geo.status_code != 200):
         print(f'Error: {response_geo.status_code}') 
         print(f'Response: {response_geo.text}')
         print('Failed')  
         return ([], 0)
     
+    #Store cords
     city_lat: str = data_geo['results'][0]['geometry']['location']['lat']
     city_lng: str = data_geo['results'][0]['geometry']['location']['lng']
 
-
-    #Search query selections;
-    
-    #Passing in a 1 corresponds to targeting, car customization shops
-    if(business_type == 1):  
-        search_type = [
-            'car customization shop',
-            'window tint shop',
-            'car wraps',
-            'vinyl wraps',
-            'vehicle wraps',
-            'paint protection film',
-            'clear bra',
-            'vehicle graphics',
-        ]
-    
-    #Passing in a 2 corresponds to targeting, home remodeling
-    else:
-        search_type = [ 
-            'home remodeling',
-            'home remodeler',
-            'residential remodeling',
-            'general contractor',
-            'home renovation',
-            'kitchen remodeling',
-            'bathroom remodeling',
-        ]
-    
     #Loop through each search type variation for a given business type
     for search in search_type:
 
@@ -260,16 +237,10 @@ def scraper(state: str, city:str, business_type:int, type_scrape:int) -> tuple[l
 
     return (list(business_dict.values()), api_requests)
 
-#Saving data
-def save_as_csv(business_list: list[dict[str, str]], business_type_scrape: int, type_scrape: int, city_scrape: str, state_scrape: str) -> None:
+def save_as_csv(business_list: list[dict[str, str]], business_type_scrape: str, type_scrape: int, city_scrape: str, state_scrape: str) -> None:
     today = date.today()
-    filename: str = ' '
+    filename: str = f'{directory_name}/{business_type_scrape}_{city_scrape}_{state_scrape}_{today}.csv'
     
-    if business_type_scrape == 1:
-        filename = f'{directory_name}/car_custom_{city_scrape}_{state_scrape}_{today}.csv'
-    else:
-        filename = f'{directory_name}/home_remodel_{city_scrape}_{state_scrape}_{today}.csv'
-
     if type_scrape == 1:
         with open(filename, 'w', newline='') as csvfile:
             writer = csv.DictWriter(csvfile, fieldnames=['business_name', 'business_number', 'business_page_uri'])
@@ -281,20 +252,75 @@ def save_as_csv(business_list: list[dict[str, str]], business_type_scrape: int, 
             writer.writeheader()
             writer.writerows(business_list)
 
-#Runs a single city at a time, and scrapes the corresponding business type and type of scrape in that business. After city is scraped saves it to csv in dir created above
-def scraper_run_loop(state_scrape: str, cities_scrape: list[str], business_type_scrape: int, type_scrape: int) -> None:  
+def scraper_run_loop(state_scrape: str, business_type_scrape: str, type_scrape: int, num_cities: int) -> None:  
     leads_found: int = 0
     total_api_requests: int = 0 
 
-    for city in cities_scrape:
-        business_list, api_requests = scraper(state_scrape, city, business_type_scrape, type_scrape)  
+    #Inital search query
+    search_queries = [business_type_scrape] #Type ignore
+     
+    #Generate city list
+    message_cities = client.messages.create(
+        max_tokens=1024, 
+        
+        messages=[{
+            'content':  f"""
+            Task: 
+            Generate me a comma seperated list of {num_cities} cities in {state_scrape}, 
+            that are good cities to cold call {business_type_scrape}, to try and sell them a website, 
+            in this format-> city1, city2, city 3. 
+            -----------------------------------------------------------------------------------------------------------
+            Requirements:
+            1. Respond with only the list of cities, nothing else. 
+            2. Ensure the cities are not too close to each other
+            3. Ensure the cities are not too small
+            """,
+            'role': 'user', 
+        }],
+
+        model='claude-sonnet-4-5-20250929'
+    )
+    cities = str_to_list(message_cities.content[0].text) #type: ignore
+    
+    #Generate search list
+    message_queries = client.messages.create(
+        max_tokens=1024,     
+        messages=[{
+            'content':  f"""
+            Task: Generate a comma separated list of 10 distinct, adjacent business niches related to {business_type_scrape} in {state_scrape}. These niches must be high value prospects for cold calling to sell web design services.
+
+            Requirements:
+
+                Format: Output only the comma-separated list (e.g., search 1, search 2, search 3). No conversational filler or introductory text.
+
+                Relevance: Each niche must be logically related to {business_type_scrape} but not a direct synonym.
+
+                Diversity: Ensure searches represent different sub-sectors or complementary industries to avoid repetitive results.
+
+            Intent: Focus on businesses that typically have high revenue but often have outdated or non existent websites (e.g., specialized contractors, local service providers).
+            """,
+            'role': 'user', 
+        }],
+
+        model='claude-sonnet-4-5-20250929'
+    )
+    
+    #add on the additional searches to search list 
+    search_queries.extend(str_to_list(message_queries.content[0].text)) #type: ignore
+    print()
+    print('Search Queries')  
+    for search in search_queries: print(search)
+    print() 
+
+    for city in cities:
+        business_list, api_requests = scraper(state_scrape, city, search_queries, type_scrape)  
         
         leads_found += len(business_list) 
         total_api_requests += api_requests
         
         #UI 
         print('-' * 40) 
-        print(f'Finished scraping {city} for {business_type_label(business_type_scrape)}')
+        print(f'Finished scraping {city} for {business_type_scrape}')
         print(f'Now have {leads_found} leads')
         print('-' * 40) 
 
@@ -309,18 +335,3 @@ def scraper_run_loop(state_scrape: str, cities_scrape: list[str], business_type_
     print(f'Total API Requests {total_api_requests}') 
     print(f'Total Leads found {leads_found}') 
     
-#Some simple labeling for claude
-def business_type_label(business_type_val: int) -> str:
-    if business_type_val == 1:
-        return 'car customization shops'
-    elif business_type_val == 2:
-        return 'home remodelers'
-    else:
-        return ' '
-def scrape_type_label(scrape_type_val: int) -> str:
-    if scrape_type_val == 1:
-        return 'get leads with no site'
-    elif scrape_type_val == 2:
-        return 'get leads with a site, but have low review count'
-    else:
-        return ' '
