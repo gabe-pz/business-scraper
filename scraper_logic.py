@@ -6,7 +6,8 @@ from api_keys import get_places_api_key
 API_KEY_PLACES: str = get_places_api_key()
 
 #Create directory to save CSVs to 
-os.makedirs('cold_leads', exist_ok=True)
+directory_name = 'cold_leads'
+os.makedirs(directory_name, exist_ok=True) 
 
 #Request URLs
 url_places:str = 'https://places.googleapis.com/v1/places:searchText'
@@ -251,7 +252,7 @@ def scraper(state: str, city:str, business_type:int, type_scrape:int) -> tuple[l
                             } 
             #Get token for going to next page
             next_page_token = results.get('nextPageToken')
-            print(f'Finished {search}; Current page ->{page_count}')
+            print(f'Finished {search}; Current page -> {page_count}')
 
             if not next_page_token or page_count >= 3:
                 break
@@ -262,12 +263,12 @@ def scraper(state: str, city:str, business_type:int, type_scrape:int) -> tuple[l
 #Saving data
 def save_as_csv(business_list: list[dict[str, str]], business_type_scrape: int, type_scrape: int, city_scrape: str, state_scrape: str) -> None:
     today = date.today()
-    filename: str = ''
+    filename: str = ' '
     
     if business_type_scrape == 1:
-        filename = f'CSVs/car_custom_{city_scrape}_{state_scrape}_{today}.csv'
+        filename = f'{directory_name}/car_custom_{city_scrape}_{state_scrape}_{today}.csv'
     else:
-        filename = f'CSVs/home_remodel_{city_scrape}_{state_scrape}_{today}.csv'
+        filename = f'{directory_name}/home_remodel_{city_scrape}_{state_scrape}_{today}.csv'
 
     if type_scrape == 1:
         with open(filename, 'w', newline='') as csvfile:

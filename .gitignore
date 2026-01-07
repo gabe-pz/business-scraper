@@ -1,4 +1,5 @@
 cold_leads
+.vscode
 api_keys.py
 .venv
 __pycache__
