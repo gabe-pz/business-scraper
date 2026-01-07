@@ -1,6 +1,9 @@
-cold_leads
-.vscode
 api_keys.py
-.venv
-__pycache__
+cold_leads/
+
+__pycache__/
 *.pyc
+.venv/
+.env
+
+.vscode/
