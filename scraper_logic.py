@@ -58,7 +58,7 @@ def scraper(state: str, city: str, search_type: list[str]) -> tuple[list[dict[st
     api_requests: int = 0
 
     #Words do want in business list
-    words: list[str] = ['handyman', 'remodel', 'remodeling', 'services', 'service', 'renovation', 'renovations', 'kitchen', 'bathroom', 'home']  
+    words: list[str] = ['handyman', 'repair', 'remodel', 'remodeling', 'services', 'service', 'renovation', 'renovations', 'kitchen', 'bathroom', 'home', 'contractor', 'contracting', 'serving', 'drywall', 'solutions']  
 
     business_dict: dict[str, dict[str, str]]  = {}     
     #Parameters for geo request
@@ -67,6 +67,9 @@ def scraper(state: str, city: str, search_type: list[str]) -> tuple[list[dict[st
         'key': API_KEY_PLACES
     }
     
+    #display city on 
+    print(f'Current state and city: ({city}, {state})')
+
     #Get cords of current city, for use in location bias
     response_geo: requests.models.Response = requests.get(url_geo, params=params)
     data_geo = response_geo.json() 
