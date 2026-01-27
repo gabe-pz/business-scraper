@@ -106,7 +106,7 @@ def scraper(state: str, city: str, search_type: list[str]) -> tuple[list[dict[st
             }
 
             if next_page_token:
-                time.sleep(2)
+                time.sleep(5)
                 data['pageToken'] = next_page_token 
 
             #Request places data
@@ -138,12 +138,11 @@ def scraper(state: str, city: str, search_type: list[str]) -> tuple[list[dict[st
                     
                     #Ensuring not taking business names with words dont want
                     name_lower = business_name.lower() 
-                    name_tokens = name_lower.split() 
                     add_bizz = False
 
                     for word in words:
                         #If the name has one of the words want then continue to add it else dont
-                        if(name_tokens == word):
+                        if word in name_lower:
                             add_bizz = True 
                             break  
                     
@@ -207,6 +206,17 @@ def scraper_run_loop(state_scrape: str, business_type_scrape: str,  num_cities: 
         model='claude-sonnet-4-5-20250929'
     )
     cities = str_to_list(message_cities.content[0].text) #type: ignore
+    
+    #User output
+    print('*' * 40)
+    print('Search terms: ') 
+    for term in search_queries:
+        print(term) 
+    print() 
+    print('Cities: ')
+    for city in cities:
+        print(city)
+    print()  
 
     for city in cities:
         business_list, api_requests = scraper(state_scrape, city, search_queries)  
