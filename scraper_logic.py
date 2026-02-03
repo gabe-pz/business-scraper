@@ -10,6 +10,11 @@ API_KEY_CLAUDE: str = get_claude_api_key()
 
 #Create directory to save CSVs to 
 directory_name = 'cold_leads'
+
+#Clear old leads(Needs to be added)
+if(os.path.isdir(directory_name)):
+    pass
+
 os.makedirs(directory_name, exist_ok=True) 
 
 #Request URLs
@@ -54,7 +59,7 @@ def str_to_list(s:str) -> list[str]:
     return string_list
 
 #Actual scraper function
-def scraper(state: str, city: str, search_type: list[str]) -> tuple[list[dict[str, str]], int]: 
+def scraper(state: str, city: str, search_type: list[str], num_city: int) -> tuple[list[dict[str, str]], int]: 
     api_requests: int = 0
 
     #Words do want in business list
@@ -67,8 +72,8 @@ def scraper(state: str, city: str, search_type: list[str]) -> tuple[list[dict[st
         'key': API_KEY_PLACES
     }
     
-    #display city on 
-    print(f'Current state and city: ({city}, {state})')
+    #display state in
+    print(f'Current city, state, and num of city: ({city}, {state}, {num_city})') 
 
     #Get cords of current city, for use in location bias
     response_geo: requests.models.Response = requests.get(url_geo, params=params)
@@ -103,7 +108,7 @@ def scraper(state: str, city: str, search_type: list[str]) -> tuple[list[dict[st
                             'latitude' : city_lat, 
                             'longitude' : city_lng
                         },
-                        'radius' : 19000.0
+                        'radius' : 20000.0
                     }
                 }
             }
@@ -117,8 +122,8 @@ def scraper(state: str, city: str, search_type: list[str]) -> tuple[list[dict[st
             api_requests += 1
 
             if response_places.status_code != 200:
-                print(f"Error: {response_places.status_code}")
-                print(f"Response: {response_places.text}")
+                print(f'Error: {response_places.status_code}')
+                print(f'Response: {response_places.text}')
                 print('Failed')  
                 return ([], 0)
 
@@ -183,34 +188,59 @@ def scraper_run_loop(state_scrape: str, business_type_scrape: str,  num_cities: 
     total_api_requests: int = 0 
     search_queries: list[str] = [] 
 
-    #Search query, converted from user input
-    if(business_type_scrape.lower() == 'handyman'):
-        search_queries = ['handyman', 'home remodelers', 'home renovations']  
-
     #Generate city list
     message_cities = client.messages.create(
-        max_tokens=1024, 
-        
-        messages=[{
-            'content':  f"""
-            Task: 
-            Generate me a comma seperated list of {num_cities} cities in {state_scrape}, 
-            that are good cities to cold call {business_type_scrape}, to try and sell them a website, 
-            in this format-> city1, city2, city 3. 
-            -----------------------------------------------------------------------------------------------------------
-            Requirements:
-            1. Respond with only the list of cities, nothing else. 
-            2. Ensure the cities are not too close to each other
-            3. Ensure the cities are not too small
-            """,
-            'role': 'user', 
-        }],
+            max_tokens=1024, 
+            
+            messages=[{
+                'content':  f"""
+                Task: 
+                Generate me a comma seperated list of {num_cities} cities in {state_scrape}, 
+                that are good cities to cold call {business_type_scrape}, to try and sell them a website, 
+                in this format-> city1, city2, city 3. 
+                -----------------------------------------------------------------------------------------------------------
+                Requirements:
+                1. Respond with only the list of cities, nothing else. 
+                2. Ensure the cities are not too close to each other
+                3. Ensure the cities are not too small
+                """,
+                'role': 'user', 
+            }],
 
-        model='claude-sonnet-4-5-20250929'
+            model='claude-sonnet-4-5-20250929'
     )
     cities = str_to_list(message_cities.content[0].text) #type: ignore
+
+    #extending search queries
+    if(business_type_scrape.lower() == 'handyman'):
+        search_queries = ['handyman', 'home remodelers', 'home renovations']  
+    #Calling Calude to generate even bigger list of search queries
+    message_queries = client.messages.create(
+    max_tokens=1024,     
+    messages=[{
+        'content':  f"""
+        Goal: Generate a comma separated list of 10 distinct, adjacent business niches related to these businesses {search_queries} in {state_scrape}. 
+        These niches must be high value prospects for cold calling to sell web design services.
+
+        Requirements:
+
+            Format: Output only a comma separated list, like so search 1, search 2, search 3, ... 
+            No conversational filler or introductory text.
+
+            Relevance: Each niche must be logically related to {business_type_scrape} but not a direct synonym.
+
+            Diversity: Ensure searches represent different sub-sectors or complementary industries to avoid repetitive results.
+
+        Intent: Focus on businesses that typically have high revenue but often have outdated or non existent websites 
+        Main target: Local service providers and contractors
+        """,
+        'role': 'user', 
+    }],
+    model='claude-sonnet-4-5-20250929'
+    )
+    search_queries.extend(str_to_list(message_queries.content[0].text)) #type: ignore
     
-    #User output
+    #Output for user
     print('*' * 40)
     print('Search terms: ') 
     for term in search_queries:
@@ -221,13 +251,13 @@ def scraper_run_loop(state_scrape: str, business_type_scrape: str,  num_cities: 
         print(city)
     print()  
 
-    for city in cities:
-        business_list, api_requests = scraper(state_scrape, city, search_queries)  
+    for num_city, city in enumerate(cities):
+        business_list, api_requests = scraper(state_scrape, city, search_queries, num_city)   
         
         leads_found += len(business_list) 
         total_api_requests += api_requests
         
-        #UI 
+        #User output
         print('-' * 40) 
         print(f'Finished scraping {city} for {business_type_scrape}')
         print(f'Now have {leads_found} leads')
