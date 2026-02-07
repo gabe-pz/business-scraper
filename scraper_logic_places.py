@@ -10,11 +10,6 @@ API_KEY_CLAUDE: str = get_claude_api_key()
 
 #Create directory to save CSVs to 
 directory_name = 'cold_leads'
-
-#Clear old leads(Needs to be added)
-if(os.path.isdir(directory_name)):
-    pass
-
 os.makedirs(directory_name, exist_ok=True) 
 
 #Request URLs
@@ -30,7 +25,6 @@ headers: dict[str, str] = {
 
 #Initalize claude client for use
 client = Anthropic(api_key=API_KEY_CLAUDE)  
-
 
 #Simple string to list function. Added for fun
 def str_to_list(s:str) -> list[str]:
@@ -62,7 +56,7 @@ def str_to_list(s:str) -> list[str]:
 def scraper(state: str, city: str, search_type: list[str], num_city: int) -> tuple[list[dict[str, str]], int]: 
     api_requests: int = 0
 
-    #Words do want in business list
+    #Word filters for business name
     words: list[str] = ['handyman', 'repair', 'remodel', 'remodeling', 'services', 'service', 'renovation', 'renovations', 'kitchen', 'bathroom', 'home', 'contractor', 'contracting', 'serving', 'drywall', 'solutions']  
 
     business_dict: dict[str, dict[str, str]]  = {}     
@@ -73,7 +67,7 @@ def scraper(state: str, city: str, search_type: list[str], num_city: int) -> tup
     }
     
     #display state in
-    print(f'Current city, state, and num of city: ({city}, {state}, {num_city})') 
+    print(f'STATUS: ({city}, {state}, {num_city+1})') 
 
     #Get cords of current city, for use in location bias
     response_geo: requests.models.Response = requests.get(url_geo, params=params)
@@ -175,12 +169,10 @@ def scraper(state: str, city: str, search_type: list[str], num_city: int) -> tup
 
     return (list(business_dict.values()), api_requests)
 
-def save_as_csv(business_list: list[dict[str, str]], business_type_scrape: str, city_scrape: str, state_scrape: str) -> None:
-    today = date.today()
-    filename: str = f'{directory_name}/{business_type_scrape}_{city_scrape}_{state_scrape}_{today}.csv'
+def save_as_csv(business_list: list[dict[str, str]], business_type_scrape: str, city_scrape: str) -> None:
+    filename: str = f'{directory_name}/{business_type_scrape}_{city_scrape}.csv'
     with open(filename, 'w', newline='') as csvfile:
         writer = csv.DictWriter(csvfile, fieldnames=['business_name', 'business_number', 'business_page_uri'])
-        writer.writeheader()
         writer.writerows(business_list)
 
 def scraper_run_loop(state_scrape: str, business_type_scrape: str,  num_cities: int) -> None:  
@@ -265,7 +257,7 @@ def scraper_run_loop(state_scrape: str, business_type_scrape: str,  num_cities: 
 
         if business_list:
             #Saves the businesses got for the city just scraped, to a csv 
-            save_as_csv(business_list, business_type_scrape , city, state_scrape)
+            save_as_csv(business_list, business_type_scrape , city)
         else:
             print(f'No businesses without websites found for {business_type_scrape} in {city}') 
     
