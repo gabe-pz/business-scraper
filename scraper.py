@@ -1,4 +1,4 @@
-from scraper_logic_places import scraper_run_loop
+from scraper_logic import scraper_run
 
 def main() -> None:
     # #Get input data from user
@@ -19,7 +19,7 @@ def main() -> None:
     print()
 
     data_check: str = input('Does the scraping input data look correct(y/n): ')
-    scraper_run_loop(state, business_type, num_cities) if data_check == 'y' else print('Okay, Ending program') 
+    scraper_run(state, business_type, num_cities) if data_check == 'y' else print('Okay, Ending program') 
     
 if __name__ == '__main__':
     main() 

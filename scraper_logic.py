@@ -1,8 +1,10 @@
-import requests, csv, time, os #type: ignore
-from datetime import date
+import requests, csv, time, os, math #type: ignore
 from api_keys import get_places_api_key, get_claude_api_key
 from anthropic import Anthropic 
 
+#Conversion constants
+RADIUS_EARTH: float = 6.38 * (10**6)
+PI: float = math.pi
 
 #API Keys, Replace with your own API key
 API_KEY_PLACES: str = get_places_api_key()
@@ -56,8 +58,13 @@ def str_to_list(s:str) -> list[str]:
 def scraper(state: str, city: str, search_type: list[str], num_city: int) -> tuple[list[dict[str, str]], int]: 
     api_requests: int = 0
 
-    #Word filters for business name
-    word_filters: list[str] = ['handyman', 'repair', 'remodel', 'remodeling', 'services', 'service', 'renovation', 'renovations', 'kitchen', 'bathroom', 'home', 'contractor', 'contracting', 'serving', 'drywall', 'solutions']  
+    #Filter stuff
+    word_filters: list[str] = [
+    'handyman', 'repair', 'remodel', 'remodeling', 'services', 
+    'service', 'renovation', 'renovations', 'kitchen', 'bathroom', 
+    'home', 'contractor', 'contracting', 'serving', 'drywall', 
+    'solutions'
+    ]  
     blacklist_words = [
         'auto glass', 'windshield', 'collision', 'body shop',
         'auto body', 'auto repair', 'car repair', 'dent removal',
@@ -65,9 +72,10 @@ def scraper(state: str, city: str, search_type: list[str], num_city: int) -> tup
         'iphone', 'console repair', 'game', 'gaming', 'tv repair',
         'television', 'electronics', 'computer repair', 'pc repair',
         'janitorial', 'maid', 'cleaning service', 'appliance repair',
-        'towing', 'mobile home parts', 'paint & body', 'smartphone', 'phone'
+        'towing', 'mobile home parts', 'paint & body', 'smartphone', 'phone',
+        'fiberglass', 'shop', 'Oilfield', 'RPM' 
     ]
-
+    not_real_site_domains = ['facebook.com', 'yelp.com', 'instagram.com', 'yellowpages.com']
 
     business_dict: dict[str, dict[str, str]]  = {}     
     #Parameters for geo request
@@ -89,9 +97,17 @@ def scraper(state: str, city: str, search_type: list[str], num_city: int) -> tup
         print('Failed')  
         return ([], 0)
     
-    city_lat: str = data_geo['results'][0]['geometry']['location']['lat']
-    city_lng: str = data_geo['results'][0]['geometry']['location']['lng']
+    #Creating cords for location restriction
+    city_lat_0: float = data_geo['results'][0]['geometry']['location']['lat']
+    city_lng_0: float = data_geo['results'][0]['geometry']['location']['lng']
 
+    dx: int = 27500
+    dy: int = 27500
+
+    lat_py: float = float(city_lat_0) + ((dy/RADIUS_EARTH) * (180/PI))
+    lat_ny: float = float(city_lat_0) + ((-dy/RADIUS_EARTH) * (180/PI))
+    lng_px: float = float(city_lng_0) + ((dx/RADIUS_EARTH) * (180/PI) /math.cos(float(city_lat_0)* PI/180))
+    lng_nx: float = float(city_lng_0) + ((-dx/RADIUS_EARTH) * (180/PI) /math.cos(float(city_lat_0)* PI/180))
 
     #Loop through each search type variation for a given business type
     for search in search_type:
@@ -106,13 +122,16 @@ def scraper(state: str, city: str, search_type: list[str], num_city: int) -> tup
             data = {
                 'textQuery': f'{search} in {city}',
                 'pageSize': 20,
-                'locationBias' : {
-                    'circle' : {
-                        'center' : {
-                            'latitude' : city_lat, 
-                            'longitude' : city_lng
+                'locationRestriction' : {
+                    'rectangle' : {
+                        'low' : {
+                            'latitude' : lat_ny,
+                            'longitude' : lng_nx
                         },
-                        'radius' : 20000.0
+                        'high' : {
+                            'latitude' : lat_py,
+                            'longitude' : lng_px
+                        }
                     }
                 }
             }
@@ -137,15 +156,18 @@ def scraper(state: str, city: str, search_type: list[str], num_city: int) -> tup
             for place in results.get('places', []): 
                 #Get website and review count 
                 website: str = place.get('websiteUri')
+                website: str = place.get('websiteUri', '')
+                has_real_website = website.strip() and not any(domain in website.lower() for domain in not_real_site_domains)
+
                 business_rating_count: int = place.get('userRatingCount', 0) 
                 
-                if not website:
+                if not has_real_website:
                     business_name: str = place.get('displayName', {}).get('text', '') 
                     business_number: str = place.get('nationalPhoneNumber', '')
                     business_page_uri: str = place.get('googleMapsUri', '')
                     business_photos: list = place.get('photos', []) 
 
-                    if not business_name or not business_number or business_rating_count < 5 or len(business_photos) == 0:
+                    if not business_name or not business_number or business_rating_count < 4 or len(business_photos) == 0:
                         continue
                     
                     #Ensuring not taking business names with words dont want
@@ -155,7 +177,7 @@ def scraper(state: str, city: str, search_type: list[str], num_city: int) -> tup
 
                     #Ensure not getting blacklisted words in business names
                     for bad_word in blacklist_words:
-                        if(bad_word in  name_lower):
+                        if(bad_word in name_lower):
                             is_blacklist = True
                             break
 
@@ -193,7 +215,7 @@ def save_as_csv(business_list: list[dict[str, str]], business_type_scrape: str, 
         writer = csv.DictWriter(csvfile, fieldnames=['business_name', 'business_number', 'business_page_uri'])
         writer.writerows(business_list)
 
-def scraper_run_loop(state_scrape: str, business_type_scrape: str,  num_cities: int) -> None:  
+def scraper_run(state_scrape: str, business_type_scrape: str,  num_cities: int) -> None:  
     leads_found: int = 0
     total_api_requests: int = 0 
     search_queries: list[str] = [] 
@@ -240,7 +262,7 @@ def scraper_run_loop(state_scrape: str, business_type_scrape: str,  num_cities: 
             - Do NOT repeat or rephrase any of those existing queries.
 
             Requirements:
-            1. Output only the comma-separated list — no preamble, no explanation
+            1. Output only the comma-separated list — no preamble, no explanation, no city name, just pure business query list
             2. Each query should be a realistic Google Maps search term (how a homeowner would search, e.g. "deck builders" not "deck construction services LLC")
             3. Target adjacent trades and sub-specialties, not synonyms of "{business_type_scrape}"
             4. Prioritize niches where businesses are likely to:
