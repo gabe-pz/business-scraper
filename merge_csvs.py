@@ -1,4 +1,5 @@
 import glob 
+import pandas as pd
 
 def main() -> None:
     #Get type of scrape did
@@ -18,6 +19,11 @@ def main() -> None:
                 #read and write one line at a time to the output file
                 for line in source_file:
                     output_file.write(line) 
-     
+    
+    #Remove dupes
+    df = pd.read_csv(f'cold-leads-{business_type}-{state}-{num_cities}.csv')
+    df.drop_duplicates(inplace=True)
+    df.to_csv(f'cold-leads-{business_type}-{state}-{num_cities}.csv', index=False)
+    
 if __name__ == '__main__':
     main() 

@@ -57,7 +57,17 @@ def scraper(state: str, city: str, search_type: list[str], num_city: int) -> tup
     api_requests: int = 0
 
     #Word filters for business name
-    words: list[str] = ['handyman', 'repair', 'remodel', 'remodeling', 'services', 'service', 'renovation', 'renovations', 'kitchen', 'bathroom', 'home', 'contractor', 'contracting', 'serving', 'drywall', 'solutions']  
+    word_filters: list[str] = ['handyman', 'repair', 'remodel', 'remodeling', 'services', 'service', 'renovation', 'renovations', 'kitchen', 'bathroom', 'home', 'contractor', 'contracting', 'serving', 'drywall', 'solutions']  
+    blacklist_words = [
+        'auto glass', 'windshield', 'collision', 'body shop',
+        'auto body', 'auto repair', 'car repair', 'dent removal',
+        'dent repair', 'cell phone', 'cellular', 'phone repair',
+        'iphone', 'console repair', 'game', 'gaming', 'tv repair',
+        'television', 'electronics', 'computer repair', 'pc repair',
+        'janitorial', 'maid', 'cleaning service', 'appliance repair',
+        'towing', 'mobile home parts', 'paint & body', 'smartphone', 'phone'
+    ]
+
 
     business_dict: dict[str, dict[str, str]]  = {}     
     #Parameters for geo request
@@ -135,18 +145,26 @@ def scraper(state: str, city: str, search_type: list[str], num_city: int) -> tup
                     business_page_uri: str = place.get('googleMapsUri', '')
                     business_photos: list = place.get('photos', []) 
 
-                    if not business_name or not business_number or business_rating_count == 0 or len(business_photos) == 0:
+                    if not business_name or not business_number or business_rating_count < 5 or len(business_photos) == 0:
                         continue
                     
                     #Ensuring not taking business names with words dont want
                     name_lower = business_name.lower() 
                     add_bizz = False
+                    is_blacklist = False
 
-                    for word in words:
-                        #If the name has one of the words want then continue to add it else dont
-                        if word in name_lower:
-                            add_bizz = True 
-                            break  
+                    #Ensure not getting blacklisted words in business names
+                    for bad_word in blacklist_words:
+                        if(bad_word in  name_lower):
+                            is_blacklist = True
+                            break
+
+                    if not is_blacklist:
+                        for word in word_filters:
+                            #If the name has one of the words want then continue to add it else dont
+                            if(word in name_lower):
+                                add_bizz = True 
+                                break  
                     
                     if(add_bizz):
                         #Labeling each unique business name and number scrape with no site
@@ -180,55 +198,62 @@ def scraper_run_loop(state_scrape: str, business_type_scrape: str,  num_cities: 
     total_api_requests: int = 0 
     search_queries: list[str] = [] 
 
-    #Generate city list
+    #Generate list of cities
     message_cities = client.messages.create(
-            max_tokens=1024, 
-            
+            max_tokens=16000,
             messages=[{
-                'content':  f"""
-                Task: 
-                Generate me a comma seperated list of {num_cities} cities in {state_scrape}, 
-                that are good cities to cold call {business_type_scrape}, to try and sell them a website, 
-                in this format-> city1, city2, city 3. 
-                -----------------------------------------------------------------------------------------------------------
+                'content': f"""
+                Generate a comma-separated list of {num_cities} cities in {state_scrape} that provides maximum geographic coverage of the entire state.
+
+                Format: city1, city2, city3, ...
+
                 Requirements:
-                1. Respond with only the list of cities, nothing else. 
-                2. Ensure the cities are not too close to each other
-                3. Ensure the cities are not too small
+                1. Respond with only the list, nothing else
+                2. Distribute cities evenly across the state — north, south, east, west, and central regions
+                3. Space cities at least 20-25 miles apart to minimize overlap
+                4. Include a mix of: major cities, mid-size cities, and smaller towns that serve as regional hubs
+                5. Prioritize cities where {business_type_scrape} businesses are likely to operate (areas with residential growth, suburban development, or aging housing stock)
+                6. Do not cluster around a single metro area — cover rural corridors and secondary markets too
+                7. Population minimum: ~5,000 residents
                 """,
                 'role': 'user', 
             }],
-
-            model='claude-sonnet-4-5-20250929'
-    )
+            model='claude-opus-4-6'
+    ) 
     cities = str_to_list(message_cities.content[0].text) #type: ignore
 
-    #extending search queries
+    #Inital search queries
     if(business_type_scrape.lower() == 'handyman'):
         search_queries = ['handyman', 'home remodelers', 'home renovations']  
     #Calling Calude to generate even bigger list of search queries
     message_queries = client.messages.create(
-    max_tokens=1024,     
-    messages=[{
-        'content':  f"""
-        Goal: Generate a comma separated list of 10 distinct, adjacent business niches related to these businesses {search_queries} in {state_scrape}. 
-        These niches must be high value prospects for cold calling to sell web design services.
+        max_tokens=16000,
+        messages=[{
+            'content': f"""
+            Generate a comma-separated list of 15 Google Maps search queries that would find businesses related to "{business_type_scrape}" in {state_scrape}.
 
-        Requirements:
+            Format: query 1, query 2, query 3, ...
 
-            Format: Output only a comma separated list, like so search 1, search 2, search 3, ... 
-            No conversational filler or introductory text.
+            Context:
+            - I'm scraping Google Places for local service businesses that lack websites, to cold call and sell them web design.
+            - I already have these base queries: {search_queries}
+            - Do NOT repeat or rephrase any of those existing queries.
 
-            Relevance: Each niche must be logically related to {business_type_scrape} but not a direct synonym.
-
-            Diversity: Ensure searches represent different sub-sectors or complementary industries to avoid repetitive results.
-
-        Intent: Focus on businesses that typically have high revenue but often have outdated or non existent websites 
-        Main target: Local service providers and contractors
-        """,
-        'role': 'user', 
-    }],
-    model='claude-sonnet-4-5-20250929'
+            Requirements:
+            1. Output only the comma-separated list — no preamble, no explanation
+            2. Each query should be a realistic Google Maps search term (how a homeowner would search, e.g. "deck builders" not "deck construction services LLC")
+            3. Target adjacent trades and sub-specialties, not synonyms of "{business_type_scrape}"
+            4. Prioritize niches where businesses are likely to:
+            - Be owner-operated or small crews (1-10 employees)
+            - Have high revenue but poor/no online presence
+            - Rely on word-of-mouth and repeat customers
+            5. Cover different sub-sectors: structural, cosmetic, outdoor, specialty, emergency
+            6. Avoid overly broad terms (e.g. "construction") that return large companies
+            7. Avoid overly narrow terms that would return zero results
+            """,
+            'role': 'user',
+        }],
+        model='claude-opus-4-6'
     )
     search_queries.extend(str_to_list(message_queries.content[0].text)) #type: ignore
     

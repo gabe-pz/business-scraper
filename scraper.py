@@ -1,8 +1,6 @@
 from scraper_logic_places import scraper_run_loop
-import glob 
 
 def main() -> None:
-
     # #Get input data from user
     business_type: str = (input('Enter the business type to scrape: '))
     print(' ') 
