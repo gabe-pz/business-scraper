@@ -58,7 +58,7 @@ def str_to_list(s:str) -> list[str]:
 def scraper(state: str, city: str, search_type: list[str], num_city: int) -> tuple[list[dict[str, str]], int]: 
     api_requests: int = 0
 
-    #Filter stuff
+    #List for filtering
     word_filters: list[str] = [
     'handyman', 'repair', 'remodel', 'remodeling', 'services', 
     'service', 'renovation', 'renovations', 'kitchen', 'bathroom', 
@@ -73,7 +73,7 @@ def scraper(state: str, city: str, search_type: list[str], num_city: int) -> tup
         'television', 'electronics', 'computer repair', 'pc repair',
         'janitorial', 'maid', 'cleaning service', 'appliance repair',
         'towing', 'mobile home parts', 'paint & body', 'smartphone', 'phone',
-        'fiberglass', 'shop', 'Oilfield', 'RPM' 
+        'fiberglass', 'shop', 'Oilfield', 'RPM', 'closed', 'window', 'tint'  
     ]
     not_real_site_domains = ['facebook.com', 'yelp.com', 'instagram.com', 'yellowpages.com']
 

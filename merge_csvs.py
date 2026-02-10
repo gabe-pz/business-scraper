@@ -1,5 +1,5 @@
-import glob 
 import pandas as pd
+import glob, os
 
 def main() -> None:
     #Get type of scrape did
@@ -12,32 +12,35 @@ def main() -> None:
     #Merge csvs from scraping
     all_dfs = []
     input_file_list = glob.glob(f'cold_leads/{business_type}_*.csv')
-
-    for input_file in input_file_list:
-        # Read each CSV with 3 columns: company, phone, url, and append to all_dfs list
-        df_temp = pd.read_csv(input_file, header=None, names=['company', 'phone', 'url'])
-        all_dfs.append(df_temp)
     
-    #Combine all dataframes
-    combined_df = pd.concat(all_dfs, ignore_index=True)
-        
-    # Create the output dataframe with correct column structure
-    output_df = pd.DataFrame({
-        'firstname': 'Jon',    
-        'lastname': 'Jones',       
-        'phone': combined_df['phone'],  
-        'email': 'jonjones@gmail.com',         
-        'company': combined_df['company'],
-        'title': 'Lock In'          
-    })
+    for input_file in input_file_list:
+        # Read each CSV with 3 columns: company, phone, url, append the city to it, then append df to all dfs
+        title = os.path.basename(input_file).split('_', 1)[1].replace('.csv', '') 
+        df_temp = pd.read_csv(input_file, header=None, names=['company', 'phone', 'url', 'city']) 
+        df_temp['city'] = title
+        all_dfs.append(df_temp) 
+    
+    #Create the output dataframe, for final csv
+    output_df = pd.DataFrame({}) 
+    for df in all_dfs:
+        # Create the output dataframe with correct column structure
+        output_df = pd.DataFrame({
+            'firstname': df['company'],    
+            'lastname': df['city'],       
+            'phone': df['phone'],  
+            'email': '',         
+            'company': '',
+            'title': ''          
+        })
+
     
     # Remove duplicates
     output_df.drop_duplicates(inplace=True)
     
-    # Save to CSV
+    # Save to CSV 
     output_df.to_csv(f'cold-leads-{business_type}-{state}-{num_cities}.csv', index=False)
     
     print(f'\nMerged {len(input_file_list)} CSV files into -> cold-leads-{business_type}-{state}-{num_cities}.csv')
-    print(f'Total leads after removing dupes: {len(output_df)}')
+    print(f'Total cold leads after removing dupes: {len(output_df)}')
 if __name__ == '__main__':
-    main() 
+    main()  
