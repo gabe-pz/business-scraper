@@ -22,7 +22,7 @@ url_geo: str = 'https://maps.googleapis.com/maps/api/geocode/json'
 headers: dict[str, str] = {
     'Content-Type': 'application/json',
     'X-Goog-Api-Key': API_KEY_PLACES,
-    'X-Goog-FieldMask': 'places.displayName,places.websiteUri,places.nationalPhoneNumber,nextPageToken,places.googleMapsUri,places.userRatingCount,places.photos'
+    'X-Goog-FieldMask': 'places.displayName,places.websiteUri,places.nationalPhoneNumber,nextPageToken,places.userRatingCount,places.photos'
 }
 
 #Initalize claude client for use
@@ -164,7 +164,6 @@ def scraper(state: str, city: str, search_type: list[str], num_city: int) -> tup
                 if not has_real_website:
                     business_name: str = place.get('displayName', {}).get('text', '') 
                     business_number: str = place.get('nationalPhoneNumber', '')
-                    business_page_uri: str = place.get('googleMapsUri', '')
                     business_photos: list = place.get('photos', []) 
 
                     if not business_name or not business_number or business_rating_count < 4 or len(business_photos) == 0:
@@ -196,7 +195,6 @@ def scraper(state: str, city: str, search_type: list[str], num_city: int) -> tup
                             business_dict[key] = {
                                 'business_name': business_name, 
                                 'business_number': business_number,
-                                'business_page_uri' : business_page_uri
                             }
 
             #Get token for going to next page
@@ -212,7 +210,7 @@ def scraper(state: str, city: str, search_type: list[str], num_city: int) -> tup
 def save_as_csv(business_list: list[dict[str, str]], business_type_scrape: str, city_scrape: str) -> None:
     filename: str = f'{directory_name}/{business_type_scrape}_{city_scrape}.csv'
     with open(filename, 'w', newline='') as csvfile:
-        writer = csv.DictWriter(csvfile, fieldnames=['business_name', 'business_number', 'business_page_uri'])
+        writer = csv.DictWriter(csvfile, fieldnames=['business_name', 'business_number'])
         writer.writerows(business_list)
 
 def scraper_run(state_scrape: str, business_type_scrape: str,  num_cities: int) -> None:  
