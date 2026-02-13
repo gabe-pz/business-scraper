@@ -1,4 +1,4 @@
-import pandas as pd
+import pandas as pd # type: ignore
 import glob, os
 
 def main() -> None:
@@ -16,7 +16,7 @@ def main() -> None:
     for input_file in input_file_list:
         # Read each CSV with 3 columns: company, phone, url, append the city to it, then append df to all dfs
         title = os.path.basename(input_file).split('_', 1)[1].replace('.csv', '') 
-        df_temp = pd.read_csv(input_file, header=None, names=['company', 'phone', 'url', 'city'], skiprows=1) 
+        df_temp = pd.read_csv(input_file, header=None, names=['company', 'phone', 'city']) 
         df_temp['city'] = title
         all_dfs.append(df_temp) 
     

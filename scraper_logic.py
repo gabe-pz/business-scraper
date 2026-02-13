@@ -3,7 +3,7 @@ from api_keys import get_places_api_key, get_claude_api_key
 from anthropic import Anthropic 
 
 #Conversion constants
-RADIUS_EARTH: float = 6.38 * (10**6)
+RADIUS_EARTH: float = 6.371 * (10**6)
 PI: float = math.pi
 
 #API Keys, Replace with your own API key
@@ -22,7 +22,7 @@ url_geo: str = 'https://maps.googleapis.com/maps/api/geocode/json'
 headers: dict[str, str] = {
     'Content-Type': 'application/json',
     'X-Goog-Api-Key': API_KEY_PLACES,
-    'X-Goog-FieldMask': 'places.displayName,places.websiteUri,places.nationalPhoneNumber,places.userRatingCount,nextPageToken'
+    'X-Goog-FieldMask': 'places.displayName,places.websiteUri,places.nationalPhoneNumber,places.userRatingCount,places.photos,nextPageToken'
 }
 
 #Initalize claude client for use
@@ -57,14 +57,8 @@ def str_to_list(s:str) -> list[str]:
 #Actual scraper function
 def scraper(state: str, city: str, search_type: list[str], num_city: int) -> tuple[list[dict[str, str]], int]: 
     api_requests: int = 0
-
+    
     #List for filtering
-    word_filters: list[str] = [
-    'handyman', 'repair', 'remodel', 'remodeling', 'services', 
-    'service', 'renovation', 'renovations', 'kitchen', 'bathroom', 
-    'home', 'contractor', 'contracting', 'serving', 'drywall', 
-    'solutions'
-    ]  
     blacklist_words: list[str] = [
         'auto glass', 'windshield', 'collision', 'body shop',
         'auto body', 'auto repair', 'car repair', 'dent removal',
@@ -97,8 +91,8 @@ def scraper(state: str, city: str, search_type: list[str], num_city: int) -> tup
     city_lat_0: float = data_geo['results'][0]['geometry']['location']['lat']
     city_lng_0: float = data_geo['results'][0]['geometry']['location']['lng']
 
-    dx: int = 50000
-    dy: int = 50000
+    dx: int = 45000
+    dy: int = 45000
 
     lat_py: float = float(city_lat_0) + ((dy/RADIUS_EARTH) * (180/PI))
     lat_ny: float = float(city_lat_0) + ((-dy/RADIUS_EARTH) * (180/PI))
@@ -113,7 +107,6 @@ def scraper(state: str, city: str, search_type: list[str], num_city: int) -> tup
 
     #Loop through each search type variation for a given business type
     for search in search_type:
-
         #Get searched data for a particular query
         next_page_token = None
         page_count: int = 0
@@ -122,9 +115,9 @@ def scraper(state: str, city: str, search_type: list[str], num_city: int) -> tup
             page_count += 1
 
             data = {
-                'textQuery': f'{search} in {city}',
+                'textQuery': f'{search}',
                 'pageSize': 20,
-                'locationBias' : {
+                'locationRestriction' : {
                     'rectangle' : {
                         'low' : {
                             'latitude' : lat_ny,
@@ -139,7 +132,7 @@ def scraper(state: str, city: str, search_type: list[str], num_city: int) -> tup
             }
 
             if next_page_token:
-                time.sleep(4.5)
+                time.sleep(5)
                 data['pageToken'] = next_page_token 
 
             #Request places data
@@ -156,37 +149,27 @@ def scraper(state: str, city: str, search_type: list[str], num_city: int) -> tup
 
             #Loop through each business from the places API response 
             for place in results.get('places', []): 
-                #Get website and review count 
-                website: str = place.get('websiteUri', '')
-                business_rating_count: int = place.get('userRatingCount', 0) 
-                
+                #Get website 
+                website: str = place.get('websiteUri')
                 if not website:
                     business_name: str = place.get('displayName', {}).get('text', '') 
                     business_number: str = place.get('nationalPhoneNumber', '')
                     business_photos: list = place.get('photos', []) 
                     
-                    if not business_name or not business_number or business_rating_count < 4 or len(business_photos) == 0:
+                    if((not business_name) or (not business_number) or (len(business_photos) == 0)):
                         continue
                     
-                    #Ensuring not taking business names with words dont want
-                    name_lower = business_name.lower() 
-                    add_bizz = False
-                    is_blacklist = False
+                    #Noting business names and initalizing vars
+                    name_lower: str = business_name.lower() 
+                    add_bizz: bool = True
 
                     #Ensure not getting blacklisted words in business names
                     for bad_word in blacklist_words:
                         if(bad_word in name_lower):
-                            is_blacklist = True
+                            add_bizz = False
                             break
-
-                    if not is_blacklist:
-                        for word in word_filters:
-                            #If the name has one of the words want then continue to add it else dont
-                            if(word in name_lower):
-                                add_bizz = True 
-                                break  
                     
-                    if(add_bizz):
+                    if add_bizz:
                         #Labeling each unique business name and number scrape with no site
                         key = f'{business_name}|{business_number}' 
                         #If already has been labled then wont relabel and add, thus avoid duplication
@@ -212,7 +195,7 @@ def save_as_csv(business_list: list[dict[str, str]], business_type_scrape: str, 
         writer = csv.DictWriter(csvfile, fieldnames=['business_name', 'business_number'])
         writer.writerows(business_list)
 
-def scraper_run(state_scrape: str, business_type_scrape: str,  num_cities: int) -> None:  
+def scraper_run(state_scrape: str, business_type_scrape: str,  num_cities: int, num_searches: int) -> None:  
     leads_found: int = 0
     total_api_requests: int = 0 
     search_queries: list[str] = [] 
@@ -244,12 +227,13 @@ def scraper_run(state_scrape: str, business_type_scrape: str,  num_cities: int) 
     #Inital search queries
     if(business_type_scrape.lower() == 'handyman'):
         search_queries = ['handyman', 'home remodelers', 'home renovations']  
-    #Calling Calude to generate even bigger list of search queries
+        
+    # #Calling Calude to generate even bigger list of search queries
     message_queries = client.messages.create(
         max_tokens=16000,
         messages=[{
             'content': f"""
-            Generate a comma-separated list of 15 Google Maps search queries that would find businesses related to "{business_type_scrape}" in {state_scrape}.
+            Generate a comma-separated list of {num_searches} Google Maps search queries that would find businesses related to "{business_type_scrape}" in {state_scrape}.
 
             Format: query 1, query 2, query 3, ...
 
@@ -301,7 +285,7 @@ def scraper_run(state_scrape: str, business_type_scrape: str,  num_cities: int) 
 
         if business_list:
             #Saves the businesses got for the city just scraped, to a csv 
-            save_as_csv(business_list, business_type_scrape , city)
+            save_as_csv(business_list, business_type_scrape, city)
         else:
             print(f'No businesses without websites found for {business_type_scrape} in {city}') 
     
