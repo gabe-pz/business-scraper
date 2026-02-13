@@ -22,7 +22,7 @@ url_geo: str = 'https://maps.googleapis.com/maps/api/geocode/json'
 headers: dict[str, str] = {
     'Content-Type': 'application/json',
     'X-Goog-Api-Key': API_KEY_PLACES,
-    'X-Goog-FieldMask': 'places.displayName,places.websiteUri,places.nationalPhoneNumber,nextPageToken,places.userRatingCount,places.photos'
+    'X-Goog-FieldMask': 'places.displayName,places.websiteUri,places.nationalPhoneNumber,places.userRatingCount,nextPageToken'
 }
 
 #Initalize claude client for use
@@ -65,7 +65,7 @@ def scraper(state: str, city: str, search_type: list[str], num_city: int) -> tup
     'home', 'contractor', 'contracting', 'serving', 'drywall', 
     'solutions'
     ]  
-    blacklist_words = [
+    blacklist_words: list[str] = [
         'auto glass', 'windshield', 'collision', 'body shop',
         'auto body', 'auto repair', 'car repair', 'dent removal',
         'dent repair', 'cell phone', 'cellular', 'phone repair',
@@ -75,7 +75,6 @@ def scraper(state: str, city: str, search_type: list[str], num_city: int) -> tup
         'towing', 'mobile home parts', 'paint & body', 'smartphone', 'phone',
         'fiberglass', 'shop', 'Oilfield', 'RPM', 'closed', 'window', 'tint'  
     ]
-    not_real_site_domains = ['facebook.com', 'yelp.com', 'instagram.com', 'yellowpages.com']
 
     business_dict: dict[str, dict[str, str]]  = {}     
     #Parameters for geo request
@@ -84,9 +83,6 @@ def scraper(state: str, city: str, search_type: list[str], num_city: int) -> tup
         'key': API_KEY_PLACES
     }
     
-    #display state in
-    print(f'STATUS: ({city}, {state}, {num_city+1})') 
-
     #Get cords of current city, for use in location bias
     response_geo: requests.models.Response = requests.get(url_geo, params=params)
     data_geo = response_geo.json() 
@@ -101,13 +97,19 @@ def scraper(state: str, city: str, search_type: list[str], num_city: int) -> tup
     city_lat_0: float = data_geo['results'][0]['geometry']['location']['lat']
     city_lng_0: float = data_geo['results'][0]['geometry']['location']['lng']
 
-    dx: int = 27500
-    dy: int = 27500
+    dx: int = 50000
+    dy: int = 50000
 
     lat_py: float = float(city_lat_0) + ((dy/RADIUS_EARTH) * (180/PI))
     lat_ny: float = float(city_lat_0) + ((-dy/RADIUS_EARTH) * (180/PI))
     lng_px: float = float(city_lng_0) + ((dx/RADIUS_EARTH) * (180/PI) /math.cos(float(city_lat_0)* PI/180))
     lng_nx: float = float(city_lng_0) + ((-dx/RADIUS_EARTH) * (180/PI) /math.cos(float(city_lat_0)* PI/180))
+
+    print(f'Low cord: ({lat_ny},{lng_nx})') 
+    print(f'High cord: ({lat_py},{lng_px})')  
+    
+    #display state in
+    print(f'STATUS: ({city}, {state}, {num_city+1})') 
 
     #Loop through each search type variation for a given business type
     for search in search_type:
@@ -122,7 +124,7 @@ def scraper(state: str, city: str, search_type: list[str], num_city: int) -> tup
             data = {
                 'textQuery': f'{search} in {city}',
                 'pageSize': 20,
-                'locationRestriction' : {
+                'locationBias' : {
                     'rectangle' : {
                         'low' : {
                             'latitude' : lat_ny,
@@ -137,7 +139,7 @@ def scraper(state: str, city: str, search_type: list[str], num_city: int) -> tup
             }
 
             if next_page_token:
-                time.sleep(5)
+                time.sleep(4.5)
                 data['pageToken'] = next_page_token 
 
             #Request places data
@@ -155,17 +157,14 @@ def scraper(state: str, city: str, search_type: list[str], num_city: int) -> tup
             #Loop through each business from the places API response 
             for place in results.get('places', []): 
                 #Get website and review count 
-                website: str = place.get('websiteUri')
                 website: str = place.get('websiteUri', '')
-                has_real_website = website.strip() and not any(domain in website.lower() for domain in not_real_site_domains)
-
                 business_rating_count: int = place.get('userRatingCount', 0) 
                 
-                if not has_real_website:
+                if not website:
                     business_name: str = place.get('displayName', {}).get('text', '') 
                     business_number: str = place.get('nationalPhoneNumber', '')
                     business_photos: list = place.get('photos', []) 
-
+                    
                     if not business_name or not business_number or business_rating_count < 4 or len(business_photos) == 0:
                         continue
                     

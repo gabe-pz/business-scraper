@@ -16,22 +16,20 @@ def main() -> None:
     for input_file in input_file_list:
         # Read each CSV with 3 columns: company, phone, url, append the city to it, then append df to all dfs
         title = os.path.basename(input_file).split('_', 1)[1].replace('.csv', '') 
-        df_temp = pd.read_csv(input_file, header=None, names=['company', 'phone', 'url', 'city']) 
+        df_temp = pd.read_csv(input_file, header=None, names=['company', 'phone', 'url', 'city'], skiprows=1) 
         df_temp['city'] = title
         all_dfs.append(df_temp) 
     
     #Create the output dataframe, for final csv
-    output_df = pd.DataFrame({}) 
-    for df in all_dfs:
-        # Create the output dataframe with correct column structure
-        output_df = pd.DataFrame({
-            'firstname': df['company'],    
-            'lastname': df['city'],       
-            'phone': df['phone'],  
-            'email': '',         
-            'company': '',
-            'title': ''          
-        })
+    merged_df = pd.concat(all_dfs, ignore_index=True)
+    output_df = pd.DataFrame({
+        'firstname': merged_df['company'],
+        'lastname': merged_df['city'],
+        'phone': merged_df['phone'],
+        'email': '',
+        'company': '',
+        'title': ''
+    })
 
     
     # Remove duplicates
