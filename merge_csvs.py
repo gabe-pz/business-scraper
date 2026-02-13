@@ -30,15 +30,16 @@ def main() -> None:
         'company': '',
         'title': ''
     })
-
-    
+    raw_output: int = len(output_df)  
     # Remove duplicates
     output_df.drop_duplicates(inplace=True)
-    
+    num_dupes: int = raw_output - len(output_df)
+
     # Save to CSV 
     output_df.to_csv(f'cold-leads-{business_type}-{state}-{num_cities}.csv', index=False)
     
     print(f'\nMerged {len(input_file_list)} CSV files into -> cold-leads-{business_type}-{state}-{num_cities}.csv')
+    print(f'Number of dupes had in data: {num_dupes}, which is about {int(num_dupes/raw_output)}% dupes in data')   
     print(f'Total cold leads after removing dupes: {len(output_df)}')
 if __name__ == '__main__':
     main()  
