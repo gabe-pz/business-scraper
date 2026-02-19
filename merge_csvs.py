@@ -3,7 +3,7 @@ import glob, os
 
 def main() -> None:
     #Get type of scrape did
-    business_type: str = (input('Enter the business type scraped: '))
+    business_type: int = int(input('Enter the business type scraped: '))
     print(' ') 
     state: str = input('Enter the state scraped: ')
     print(' ') 
@@ -31,8 +31,9 @@ def main() -> None:
         'title': ''
     })
     raw_output: int = len(output_df)  
+
     # Remove duplicates
-    output_df.drop_duplicates(inplace=True)
+    output_df.drop_duplicates(subset=['firstname', 'phone'], inplace=True)
     num_dupes: int = raw_output - len(output_df)
 
     # Save to CSV 

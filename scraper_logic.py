@@ -69,8 +69,14 @@ def scraper(state: str, city: str, search_type: list[str], num_city: int) -> tup
         'towing', 'mobile home parts', 'paint & body', 'smartphone', 'phone',
         'fiberglass', 'shop', 'Oilfield', 'RPM', 'closed', 'window', 'tint'  
     ]
+    filtered_words: list[str] = [
+        'service', 'services', 'repair', 'repairs', 'handyman', 'remodeling',
+        'remodel', 'home', 'general', 'construction', 'bath', 'bathroom', 'kitchen',
+        'contractors', 'HVAC', 'AC', 'painting', 'painter'
+    ]
 
-    business_dict: dict[str, dict[str, str]]  = {}     
+    business_dict: dict[str, dict[str, str]]  = {}
+
     #Parameters for geo request
     params: dict[str, str] = {
         'address': f'{city}, {state}',
@@ -101,8 +107,6 @@ def scraper(state: str, city: str, search_type: list[str], num_city: int) -> tup
 
     print(f'Low cord: ({lat_ny},{lng_nx})') 
     print(f'High cord: ({lat_py},{lng_px})')  
-    
-    #display state in
     print(f'STATUS: ({city}, {state}, {num_city+1})') 
 
     #Loop through each search type variation for a given business type
@@ -162,14 +166,20 @@ def scraper(state: str, city: str, search_type: list[str], num_city: int) -> tup
                     #Noting business names and initalizing vars
                     name_lower: str = business_name.lower() 
                     add_bizz: bool = True
+                    name_filtered: bool = False
 
                     #Ensure not getting blacklisted words in business names
                     for bad_word in blacklist_words:
                         if(bad_word in name_lower):
                             add_bizz = False
                             break
+                            
+                    for good_word in filtered_words:
+                        if(good_word in name_lower):
+                            name_filtered = True
+                            break
                     
-                    if add_bizz:
+                    if(add_bizz and name_filtered):
                         #Labeling each unique business name and number scrape with no site
                         key = f'{business_name}|{business_number}' 
                         #If already has been labled then wont relabel and add, thus avoid duplication
@@ -181,26 +191,26 @@ def scraper(state: str, city: str, search_type: list[str], num_city: int) -> tup
 
             #Get token for going to next page
             next_page_token = results.get('nextPageToken')
-            print(f'Finished {search}; Current page -> {page_count}')
-
+            print(f'Finished {search}, Current page -> {page_count}')
+            
             if not next_page_token or page_count >= 3:
                 break
 
 
     return (list(business_dict.values()), api_requests)
 
-def save_as_csv(business_list: list[dict[str, str]], business_type_scrape: str, city_scrape: str) -> None:
+def save_as_csv(business_list: list[dict[str, str]], business_type_scrape: int, city_scrape: str) -> None:
     filename: str = f'{directory_name}/{business_type_scrape}_{city_scrape}.csv'
     with open(filename, 'w', newline='') as csvfile:
         writer = csv.DictWriter(csvfile, fieldnames=['business_name', 'business_number'])
         writer.writerows(business_list)
 
-def scraper_run(state_scrape: str, business_type_scrape: str,  num_cities: int, num_searches: int) -> None:  
+def scraper_run(state_scrape: str, business_type_scrape: int,  num_cities: int) -> None:  
     leads_found: int = 0
     total_api_requests: int = 0 
     search_queries: list[str] = [] 
 
-    #Generate list of cities
+    #Generate list of cities, for (lat, lng) pt's
     message_cities = client.messages.create(
             max_tokens=16000,
             messages=[{
@@ -224,52 +234,21 @@ def scraper_run(state_scrape: str, business_type_scrape: str,  num_cities: int, 
     ) 
     cities = str_to_list(message_cities.content[0].text) #type: ignore
 
-    #Inital search queries
-    if(business_type_scrape.lower() == 'handyman'):
-        search_queries = ['handyman', 'home remodelers', 'home renovations']  
-        
-    # #Calling Calude to generate even bigger list of search queries
-    message_queries = client.messages.create(
-        max_tokens=16000,
-        messages=[{
-            'content': f"""
-            Generate a comma-separated list of {num_searches} Google Maps search queries that would find businesses related to "{business_type_scrape}" in {state_scrape}.
-
-            Format: query 1, query 2, query 3, ...
-
-            Context:
-            - I'm scraping Google Places for local service businesses that lack websites, to cold call and sell them web design.
-            - I already have these base queries: {search_queries}
-            - Do NOT repeat or rephrase any of those existing queries.
-
-            Requirements:
-            1. Output only the comma-separated list — no preamble, no explanation, no city name, just pure business query list
-            2. Each query should be a realistic Google Maps search term (how a homeowner would search, e.g. "deck builders" not "deck construction services LLC")
-            3. Target adjacent trades and sub-specialties, not synonyms of "{business_type_scrape}"
-            4. Prioritize niches where businesses are likely to:
-            - Be owner-operated or small crews (1-10 employees)
-            - Have high revenue but poor/no online presence
-            - Rely on word-of-mouth and repeat customers
-            5. Cover different sub-sectors: structural, cosmetic, outdoor, specialty, emergency
-            6. Avoid overly broad terms (e.g. "construction") that return large companies
-            7. Avoid overly narrow terms that would return zero results
-            """,
-            'role': 'user',
-        }],
-        model='claude-opus-4-6'
-    )
-    search_queries.extend(str_to_list(message_queries.content[0].text)) #type: ignore
-    
-    #Output for user
-    print('*' * 40)
-    print('Search terms: ') 
-    for term in search_queries:
-        print(term) 
-    print() 
-    print('Cities: ')
-    for city in cities:
-        print(city)
-    print()  
+    #search queries
+    if(business_type_scrape == 0):
+        search_queries = [
+        'handyman',
+        'home remodelers',
+        'general contractors',
+        'kitchen and bath remodeling',
+        'roofing contractors',
+        'plumbers near me',
+        'electricians near me',
+        'HVAC contractors',
+        'painting contractors',
+        'landscaping companies',
+        'flooring contractors',
+        ]
 
     for num_city, city in enumerate(cities):
         business_list, api_requests = scraper(state_scrape, city, search_queries, num_city)   
