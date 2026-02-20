@@ -72,7 +72,7 @@ def scraper(state: str, city: str, search_type: list[str], num_city: int) -> tup
     filtered_words: list[str] = [
         'service', 'services', 'repair', 'repairs', 'handyman', 'remodeling',
         'remodel', 'home', 'general', 'construction', 'bath', 'bathroom', 'kitchen',
-        'contractors', 'HVAC', 'AC', 'painting', 'painter'
+        'contractors', 'HVAC', 'AC', 'painting', 'painter', 'roofers', 'roofing'
     ]
 
     business_dict: dict[str, dict[str, str]]  = {}
@@ -215,18 +215,16 @@ def scraper_run(state_scrape: str, business_type_scrape: int,  num_cities: int) 
             max_tokens=16000,
             messages=[{
                 'content': f"""
-                Generate a comma-separated list of {num_cities} cities in {state_scrape} that provides maximum geographic coverage of the entire state.
+                Generate a comma separated list of {num_cities} cities in {state_scrape} that provides maximum geographic coverage of the entire state.
 
-                Format: city1, city2, city3, ...
+                Format: city1, city2, city3, ..., cityN
 
                 Requirements:
                 1. Respond with only the list, nothing else
-                2. Distribute cities evenly across the state — north, south, east, west, and central regions
-                3. Space cities at least 20-25 miles apart to minimize overlap
-                4. Include a mix of: major cities, mid-size cities, and smaller towns that serve as regional hubs
-                5. Prioritize cities where {business_type_scrape} businesses are likely to operate (areas with residential growth, suburban development, or aging housing stock)
-                6. Do not cluster around a single metro area — cover rural corridors and secondary markets too
-                7. Population minimum: ~5,000 residents
+                2. Distribute cities evenly across the state, north, south, east, west, and central regions
+                3. Space cities at least ~100km apart to minimize overlap 
+                4. Population minimum: ~100,000 residents
+                5. Prioritize cities that are wealthy cities 
                 """,
                 'role': 'user', 
             }],
@@ -234,7 +232,7 @@ def scraper_run(state_scrape: str, business_type_scrape: int,  num_cities: int) 
     ) 
     cities = str_to_list(message_cities.content[0].text) #type: ignore
 
-    #search queries
+    #search queries 
     if(business_type_scrape == 0):
         search_queries = [
         'handyman',
@@ -243,11 +241,8 @@ def scraper_run(state_scrape: str, business_type_scrape: int,  num_cities: int) 
         'kitchen and bath remodeling',
         'roofing contractors',
         'plumbers near me',
-        'electricians near me',
         'HVAC contractors',
-        'painting contractors',
-        'landscaping companies',
-        'flooring contractors',
+        'painters',
         ]
 
     for num_city, city in enumerate(cities):
