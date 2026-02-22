@@ -55,7 +55,7 @@ def str_to_list(s:str) -> list[str]:
     return string_list
 
 #Actual scraper function
-def scraper(state: str, city: str, search_type: list[str], num_city: int) -> tuple[list[dict[str, str]], int]: 
+def scraper(state: str, city: str, search_type: list[str], num_city: int, type_scrape: int) -> tuple[list[dict[str, str]], int]: 
     api_requests: int = 0
     
     #List for filtering
@@ -69,11 +69,10 @@ def scraper(state: str, city: str, search_type: list[str], num_city: int) -> tup
         'towing', 'mobile home parts', 'paint & body', 'smartphone', 'phone',
         'fiberglass', 'shop', 'Oilfield', 'RPM', 'closed', 'window', 'tint'  
     ]
-    filtered_words: list[str] = [
-        'service', 'services', 'repair', 'repairs', 'handyman', 'remodeling',
-        'remodel', 'home', 'general', 'construction', 'bath', 'bathroom', 'kitchen',
-        'contractors', 'HVAC', 'AC', 'painting', 'painter', 'roofers', 'roofing'
-    ]
+
+    handyman_filter_list: list[str] = ['service', 'services', 'repair', 'repairs', 'handyman', 'home']
+    contractor_filter_list: list[str] = ['remodeling', 'general', 'remodel', 'construction', 'roofing', 'roofers' ]
+    filter_words_dict: dict[int, list[str]] = {0: handyman_filter_list, 1: contractor_filter_list}
 
     business_dict: dict[str, dict[str, str]]  = {}
 
@@ -105,8 +104,6 @@ def scraper(state: str, city: str, search_type: list[str], num_city: int) -> tup
     lng_px: float = float(city_lng_0) + ((dx/RADIUS_EARTH) * (180/PI) /math.cos(float(city_lat_0)* PI/180))
     lng_nx: float = float(city_lng_0) + ((-dx/RADIUS_EARTH) * (180/PI) /math.cos(float(city_lat_0)* PI/180))
 
-    print(f'Low cord: ({lat_ny},{lng_nx})') 
-    print(f'High cord: ({lat_py},{lng_px})')  
     print(f'STATUS: ({city}, {state}, {num_city+1})') 
 
     #Loop through each search type variation for a given business type
@@ -153,14 +150,15 @@ def scraper(state: str, city: str, search_type: list[str], num_city: int) -> tup
 
             #Loop through each business from the places API response 
             for place in results.get('places', []): 
-                #Get website 
+            
                 website: str = place.get('websiteUri')
+
                 if not website:
                     business_name: str = place.get('displayName', {}).get('text', '') 
                     business_number: str = place.get('nationalPhoneNumber', '')
                     business_photos: list = place.get('photos', []) 
                     
-                    if((not business_name) or (not business_number) or (len(business_photos) == 0)):
+                    if((not business_name) or (not business_number) or (len(business_photos) < 2)):
                         continue
                     
                     #Noting business names and initalizing vars
@@ -173,15 +171,18 @@ def scraper(state: str, city: str, search_type: list[str], num_city: int) -> tup
                         if(bad_word in name_lower):
                             add_bizz = False
                             break
-                            
-                    for good_word in filtered_words:
+                    
+                    #Ensure that for a given type of scraping, the name is filterd
+                    for good_word in filter_words_dict[type_scrape]:
                         if(good_word in name_lower):
                             name_filtered = True
                             break
-                    
+
+                    #Apply Filters
                     if(add_bizz and name_filtered):
                         #Labeling each unique business name and number scrape with no site
                         key = f'{business_name}|{business_number}' 
+
                         #If already has been labled then wont relabel and add, thus avoid duplication
                         if(key not in business_dict): 
                             business_dict[key] = {
@@ -210,7 +211,7 @@ def scraper_run(state_scrape: str, business_type_scrape: int,  num_cities: int) 
     total_api_requests: int = 0 
     search_queries: list[str] = [] 
 
-    #Generate list of cities, for (lat, lng) pt's
+    #Generate list of cities
     message_cities = client.messages.create(
             max_tokens=16000,
             messages=[{
@@ -232,33 +233,35 @@ def scraper_run(state_scrape: str, business_type_scrape: int,  num_cities: int) 
     ) 
     cities = str_to_list(message_cities.content[0].text) #type: ignore
 
-    #search queries 
+    #search queries for types
     if(business_type_scrape == 0):
         search_queries = [
         'handyman',
-        'home remodelers',
-        'general contractors',
-        'kitchen and bath remodeling',
-        'roofing contractors',
         'plumbers near me',
-        'HVAC contractors',
         'painters',
         ]
-
+    elif(business_type_scrape == 1):
+        search_queries = [
+            'general contractors',
+            'home remodelers',
+            'construction'
+        ]
+    
+    #Scrape each city for a given state
     for num_city, city in enumerate(cities):
-        business_list, api_requests = scraper(state_scrape, city, search_queries, num_city)   
+        business_list, api_requests = scraper(state_scrape, city, search_queries, num_city, business_type_scrape)   
         
         leads_found += len(business_list) 
         total_api_requests += api_requests
         
-        #User output
+        #Output for user
         print('-' * 40) 
         print(f'Finished scraping {city} for {business_type_scrape}')
         print(f'Now have {leads_found} leads')
         print('-' * 40) 
 
+        #Save scraped data to csv
         if business_list:
-            #Saves the businesses got for the city just scraped, to a csv 
             save_as_csv(business_list, business_type_scrape, city)
         else:
             print(f'No businesses without websites found for {business_type_scrape} in {city}') 
