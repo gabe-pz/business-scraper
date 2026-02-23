@@ -58,7 +58,7 @@ def str_to_list(s:str) -> list[str]:
 def scraper(state: str, city: str, search_type: list[str], num_city: int, type_scrape: int) -> tuple[list[dict[str, str]], int]: 
     api_requests: int = 0
     
-    #List for filtering
+    #Words do not want in business name
     blacklist_words: list[str] = [
         'auto glass', 'windshield', 'collision', 'body shop',
         'auto body', 'auto repair', 'car repair', 'dent removal',
@@ -70,10 +70,14 @@ def scraper(state: str, city: str, search_type: list[str], num_city: int, type_s
         'fiberglass', 'shop', 'Oilfield', 'RPM', 'closed', 'window', 'tint'  
     ]
 
-    handyman_filter_list: list[str] = ['service', 'services', 'repair', 'repairs', 'handyman', 'home']
-    contractor_filter_list: list[str] = ['remodeling', 'general', 'remodel', 'construction', 'roofing', 'roofers' ]
-    filter_words_dict: dict[int, list[str]] = {0: handyman_filter_list, 1: contractor_filter_list}
+    #Filters for words in business names for a particular business type
+    pennystock_filter_list: list[str] = ['service', 'services', 'repair', 'repairs', 'handyman', 'home', 'lawn', 'plumbing', 'electric', 'construction']
+    bluechip_filter_list: list[str] = ['remodeling', 'general', 'remodel', 'construction', 'roofing', 'roofers', 'commercial', 'home', 'builders']
+    
+    #Dict to associate filter list for a given business type
+    filter_words_dict: dict[int, list[str]] = {0: pennystock_filter_list, 1: bluechip_filter_list}
 
+    #Dict to store businesses
     business_dict: dict[str, dict[str, str]]  = {}
 
     #Parameters for geo request
@@ -101,8 +105,8 @@ def scraper(state: str, city: str, search_type: list[str], num_city: int, type_s
 
     lat_py: float = float(city_lat_0) + ((dy/RADIUS_EARTH) * (180/PI))
     lat_ny: float = float(city_lat_0) + ((-dy/RADIUS_EARTH) * (180/PI))
-    lng_px: float = float(city_lng_0) + ((dx/RADIUS_EARTH) * (180/PI) /math.cos(float(city_lat_0)* PI/180))
-    lng_nx: float = float(city_lng_0) + ((-dx/RADIUS_EARTH) * (180/PI) /math.cos(float(city_lat_0)* PI/180))
+    lng_px: float = float(city_lng_0) + ((dx/RADIUS_EARTH) * (180/PI) / math.cos(float(city_lat_0)* PI/180))
+    lng_nx: float = float(city_lng_0) + ((-dx/RADIUS_EARTH) * (180/PI) / math.cos(float(city_lat_0)* PI/180))
 
     print(f'STATUS: ({city}, {state}, {num_city+1})') 
 
@@ -140,7 +144,7 @@ def scraper(state: str, city: str, search_type: list[str], num_city: int, type_s
             response_places: requests.models.Response = requests.post(url_places, json=data, headers=headers) 
             api_requests += 1
 
-            if response_places.status_code != 200:
+            if(response_places.status_code != 200):
                 print(f'Error: {response_places.status_code}')
                 print(f'Response: {response_places.text}')
                 print('Failed')  
@@ -194,7 +198,7 @@ def scraper(state: str, city: str, search_type: list[str], num_city: int, type_s
             next_page_token = results.get('nextPageToken')
             print(f'Finished {search}, Current page -> {page_count}')
             
-            if not next_page_token or page_count >= 3:
+            if (not (next_page_token or page_count > 2)):
                 break
 
 
@@ -237,14 +241,18 @@ def scraper_run(state_scrape: str, business_type_scrape: int,  num_cities: int) 
     if(business_type_scrape == 0):
         search_queries = [
         'handyman',
-        'plumbers near me',
+        'plumbers',
         'painters',
+        'electricians',
+        'landscaping'
         ]
     elif(business_type_scrape == 1):
         search_queries = [
             'general contractors',
             'home remodelers',
-            'construction'
+            'construction',
+            'home builders', 
+            'roofers'
         ]
     
     #Scrape each city for a given state

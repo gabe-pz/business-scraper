@@ -37,7 +37,7 @@ def main() -> None:
     num_dupes: int = raw_output - len(output_df)
 
     # Save to CSV 
-    output_df.to_csv(f'cold-leads-{business_type}-{state}-{num_cities}.csv', index=False)
+    output_df.to_csv(f'formated-leads/cold-leads-{business_type}-{state}-{num_cities}.csv', index=False)
     
     print(f'\nMerged {len(input_file_list)} CSV files into -> cold-leads-{business_type}-{state}-{num_cities}.csv')
     print(f'Number of dupes had in data: {num_dupes}, which is about {int(num_dupes/raw_output)*100}% dupes in data')   

@@ -1,5 +1,6 @@
 api_keys.py
 cold_leads/
+formated-leads/ 
 
 __pycache__/
 *.pyc
