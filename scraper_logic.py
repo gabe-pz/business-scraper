@@ -1,6 +1,6 @@
 import requests, csv, time, os, math #type: ignore
 from api_keys import get_places_api_key, get_claude_api_key
-from anthropic import Anthropic 
+from anthropic import Anthropic #type: ignore
 
 #Conversion constants
 RADIUS_EARTH: float = 6.371 * (10**6)
