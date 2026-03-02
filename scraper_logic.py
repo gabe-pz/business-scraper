@@ -72,7 +72,7 @@ def scraper(state: str, city: str, search_type: list[str], num_city: int, type_s
 
     #Filters for words in business names for a particular business type
     pennystock_filter_list: list[str] = ['service', 'services', 'repair', 'repairs', 'handyman', 'home', 'lawn', 'plumbing', 'electric', 'construction']
-    bluechip_filter_list: list[str] = ['remodeling', 'general', 'remodel', 'construction', 'roofing', 'roofers', 'commercial', 'home', 'builders']
+    bluechip_filter_list: list[str] = ['remodeling', 'general', 'remodel', 'construction', 'commercial', 'home', 'builders']
     
     #Dict to associate filter list for a given business type
     filter_words_dict: dict[int, list[str]] = {0: pennystock_filter_list, 1: bluechip_filter_list}
@@ -198,7 +198,7 @@ def scraper(state: str, city: str, search_type: list[str], num_city: int, type_s
             next_page_token = results.get('nextPageToken')
             print(f'Finished {search}, Current page -> {page_count}')
             
-            if (not (next_page_token or page_count > 2)):
+            if (not next_page_token or page_count > 3):
                 break
 
 
@@ -251,8 +251,7 @@ def scraper_run(state_scrape: str, business_type_scrape: int,  num_cities: int) 
             'general contractors',
             'home remodelers',
             'construction',
-            'home builders', 
-            'roofers'
+            'home builders'        
         ]
     
     #Scrape each city for a given state

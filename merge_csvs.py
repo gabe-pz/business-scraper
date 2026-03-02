@@ -34,6 +34,8 @@ def main() -> None:
 
     # Remove duplicates
     output_df.drop_duplicates(subset=['firstname', 'phone'], inplace=True)
+    
+    #Calculate amount dropped
     num_dupes: int = raw_output - len(output_df)
 
     # Save to CSV 

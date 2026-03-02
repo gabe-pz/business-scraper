@@ -2,7 +2,7 @@ from scraper_logic import scraper_run
 
 def main() -> None:
     #Get input data from user
-    business_type: int = int(input('Enter the business type to scrape: '))
+    business_type: int = int(input('Enter the business type to scrape(0=penystocks, 1=bluechips): '))
     print() 
     state: str = input('Enter the state to scrape: ')
     print() 
