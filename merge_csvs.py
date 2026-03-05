@@ -22,6 +22,7 @@ def main() -> None:
     
     #Create the output dataframe, for final csv
     merged_df = pd.concat(all_dfs, ignore_index=True)
+    merged_df['company'] = merged_df['company'].str.replace('"', '', regex=False)
     output_df = pd.DataFrame({
         'firstname': merged_df['company'],
         'lastname': merged_df['city'],
@@ -41,8 +42,10 @@ def main() -> None:
     # Save to CSV 
     output_df.to_csv(f'formated-leads/cold-leads-{business_type}-{state}-{num_cities}.csv', index=False)
     
+    dupe_pct = int(num_dupes * 100 / raw_output) if raw_output else 0
     print(f'\nMerged {len(input_file_list)} CSV files into -> cold-leads-{business_type}-{state}-{num_cities}.csv')
-    print(f'Number of dupes had in data: {num_dupes}, which is about {int(num_dupes/raw_output)*100}% dupes in data')   
+    print(f'Number of dupes had in data: {num_dupes}, which is about {dupe_pct}% dupes in data')
     print(f'Total cold leads after removing dupes: {len(output_df)}')
+    
 if __name__ == '__main__':
     main()  
