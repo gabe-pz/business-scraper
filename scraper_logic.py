@@ -70,7 +70,7 @@ def scraper(state: str, city: str, search_type: list[str], num_city: int, type_s
         'fiberglass', 'shop', 'Oilfield', 'RPM', 'closed', 'window', 'tint'  
     ]
 
-    #Filters for words in business names for a particular business type
+    #Words do want in each business name for a particular business type
     pennystock_filter_list: list[str] = ['service', 'services', 'repair', 'repairs', 'handyman', 'home', 'lawn', 'plumbing', 'electric', 'construction']
     bluechip_filter_list: list[str] = ['remodeling', 'general', 'remodel', 'construction', 'commercial', 'home', 'builders']
     
@@ -244,14 +244,13 @@ def scraper_run(state_scrape: str, business_type_scrape: int,  num_cities: int) 
         'plumbers',
         'painters',
         'electricians',
-        'landscaping'
+        'landscaping',
+        'general contractors',
         ]
     elif(business_type_scrape == 1):
         search_queries = [
-            'general contractors',
             'home remodelers',
-            'construction',
-            'home builders'        
+            'construction',        
         ]
     
     #Scrape each city for a given state
