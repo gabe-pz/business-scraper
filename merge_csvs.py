@@ -3,7 +3,7 @@ import glob, os
 
 def main() -> None:
     #Get type of scrape did
-    business_type: int = int(input('Enter the business type scraped: '))
+    business_type: str = input('Enter the business type scraped: ')
     print(' ') 
     state: str = input('Enter the state scraped: ')
     print(' ') 

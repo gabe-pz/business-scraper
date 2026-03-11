@@ -72,7 +72,7 @@ def scraper(state: str, city: str, search_type: list[str], num_city: int, type_s
 
     #Words do want in each business name for a particular business type
     pennystock_filter_list: list[str] = ['service', 'services', 'repair', 'repairs', 'handyman', 'home', 'lawn', 'plumbing', 'electric', 'construction']
-    bluechip_filter_list: list[str] = ['remodeling', 'general', 'remodel', 'construction', 'commercial', 'home', 'builders']
+    bluechip_filter_list: list[str] = ['remodeling', 'remodel', 'remodelers', 'construction', 'commercial', 'home', 'builders']
     
     #Dict to associate filter list for a given business type
     filter_words_dict: dict[int, list[str]] = {0: pennystock_filter_list, 1: bluechip_filter_list}
