@@ -33,13 +33,13 @@ def main() -> None:
     })
     raw_output: int = len(output_df)  
 
-    # Remove duplicates
+    #Remove duplicates
     output_df.drop_duplicates(subset=['firstname', 'phone'], inplace=True)
     
     #Calculate amount dropped
     num_dupes: int = raw_output - len(output_df)
 
-    # Save to CSV 
+    #Save to CSV 
     output_df.to_csv(f'formated-leads/cold-leads-{business_type}-{state}-{num_cities}.csv', index=False)
     
     dupe_pct = int(num_dupes * 100 / raw_output) if raw_output else 0
